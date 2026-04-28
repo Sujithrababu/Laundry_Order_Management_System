@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Laundry Management System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; color: #333; }
+        h2 { color: #333; }
+        input, button, select { margin: 5px; padding: 8px; }
+        button { cursor: pointer; }
+        .section { background: white; padding: 15px; margin-bottom: 20px; border-radius: 8px; }
+        .order { border: 1px solid #ddd; padding: 10px; margin-top: 10px; border-radius: 5px; }
+        #update-status-section { display: none; }
+        .success-msg { color: green; font-weight: bold; }
+        .error-msg, .field-error { color: red; font-size: 13px; margin: 0 0 6px 5px; }
+        .field { display: inline-block; vertical-align: top; margin-bottom: 8px; }
+        .valid-tick { color: green; font-weight: bold; visibility: hidden; }
+        .field.valid .valid-tick { visibility: visible; }
+        .field.invalid input { border: 1px solid red; }
+        .field.valid input { border: 1px solid green; }
+        .garment-row { margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+
+<h1>Laundry Order Management</h1>
+
+<div class="section">
+    <h2>Authentication</h2>
+
+    <div class="field" data-field="auth-username">
+        <input id="auth-username" placeholder="Username" autocomplete="username">
+        <span class="valid-tick">✓</span>
+        <div class="field-error"></div>
+    </div>
+
+    <div class="field" data-field="auth-password">
+        <input id="auth-password" placeholder="Password" type="password" autocomplete="current-password">
+        <span class="valid-tick">✓</span>
+        <div class="field-error"></div>
+    </div>
+
+    <button onclick="registerUser()">Register</button>
+    <button onclick="loginUser()">Login</button>
+    <button onclick="logoutUser()">Logout</button>
+
+    <p id="auth-result"></p>
+</div>
+
+<div class="section">
+    <h2>1. Create Order</h2>
+
+    <div class="field" data-field="name">
+        <input id="name" placeholder="Customer Name">
+        <span class="valid-tick">✓</span>
+        <div class="field-error"></div>
+    </div>
+
+    <div class="field" data-field="phone">
+        <input id="phone" placeholder="Phone Number" maxlength="10">
+        <span class="valid-tick">✓</span>
+        <div class="field-error"></div>
+    </div>
+
+    <h3>Garments</h3>
+    <div id="garments"></div>
+    <button onclick="addGarment()">Add Garment</button><br><br>
+
+    <button onclick="submitOrder()">Submit Order</button>
+
+    <div id="order-result" style="margin-top:10px;"></div>
+</div>
+
+<div class="section" id="update-status-section">
+    <h2>2. Update Order Status</h2>
+
+    <p>Order ID: <b id="created-order-id"></b></p>
+
+    <select id="new-status">
+        <option value="RECEIVED">RECEIVED</option>
+        <option value="PROCESSING">PROCESSING</option>
+        <option value="READY">READY</option>
+        <option value="DELIVERED">DELIVERED</option>
+    </select>
+
+    <button onclick="updateStatusFromCreate()">Update Status</button>
+
+    <p id="status-update-result"></p>
+</div>
+
+<div class="section">
+    <h2>3. Update Status by Order ID</h2>
+
+    <input id="manual-order-id" placeholder="Enter Order ID">
+    <select id="manual-status">
+        <option value="RECEIVED">RECEIVED</option>
+        <option value="PROCESSING">PROCESSING</option>
+        <option value="READY">READY</option>
+        <option value="DELIVERED">DELIVERED</option>
+    </select>
+    <button onclick="updateStatusManual()">Update Status</button>
+
+    <p id="manual-status-result"></p>
+</div>
+
+<div class="section">
+    <h2>4. All Orders</h2>
+
+    <input id="filter-status" placeholder="Filter by Status (e.g. RECEIVED)">
+    <input id="filter-name" placeholder="Filter by Customer Name">
+    <input id="filter-phone" placeholder="Filter by Phone Number">
+    <input id="filter-garment" placeholder="Filter by Garment Name">
+    <button onclick="loadOrders()">Search / Refresh</button>
+
+    <div id="orders"></div>
+</div>
+
+<div class="section">
+    <h2>5. Dashboard</h2>
+    <button onclick="loadDashboard()">Load Dashboard</button>
+    <pre id="dashboard"></pre>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+let jwtToken = "";
+
+const validators = {
+    "auth-username": value => value.trim().length >= 3 ? "" : "Username must be at least 3 characters.",
+    "auth-password": value => value.length >= 6 ? "" : "Password must be at least 6 characters.",
+    "name": value => {
+        const trimmed = value.trim();
+        if (trimmed.length < 2) return "Customer name must be at least 2 characters.";
+        if (!/^[A-Za-z ]+$/.test(trimmed)) return "Customer name must contain letters and spaces only.";
+        return "";
+    },
+    "phone": value => {
+        const trimmed = value.trim();
+        if (!/^\d+$/.test(trimmed)) return "Phone number must contain numbers only.";
+        if (trimmed.length !== 10) return "Phone number must be exactly 10 digits.";
+        return "";
+    },
+    "g-name": value => {
+        const trimmed = value.trim();
+        if (!trimmed) return "Garment name cannot be empty.";
+        if (!/^[A-Za-z ]+$/.test(trimmed)) return "Garment name must contain letters and spaces only.";
+        return "";
+    },
+    "g-qty": value => Number(value) >= 1 ? "" : "Quantity must be at least 1.",
+    "g-price": value => Number(value) >= 1 ? "" : "Price per item must be at least 1."
+};
+
+function setFieldState(input, error) {
+    const field = input.closest(".field");
+    const errorEl = field.querySelector(".field-error");
+
+    field.classList.toggle("valid", !error);
+    field.classList.toggle("invalid", Boolean(error));
+    errorEl.innerText = error;
+}
+
+function validateInput(input) {
+    const key = input.dataset.validator || input.id;
+    const validator = validators[key];
+    if (!validator) return true;
+
+    const error = validator(input.value);
+    setFieldState(input, error);
+    return !error;
+}
+
+function validateSelector(selector) {
+    let valid = true;
+    document.querySelectorAll(selector).forEach(input => {
+        if (!validateInput(input)) valid = false;
+    });
+    return valid;
+}
+
+function authHeaders() {
+    return {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${jwtToken}`
+    };
+}
+
+async function protectedFetch(url, options = {}) {
+    if (!jwtToken) {
+        throw new Error("Please login first.");
+    }
+
+    const headers = {
+        ...authHeaders(),
+        ...(options.headers || {})
+    };
+
+    return fetch(url, { ...options, headers });
+}
+
+function formatApiError(data, fallback) {
+    if (Array.isArray(data.detail)) {
+        return data.detail.map(item => item.msg).join(" ");
+    }
+    return data.detail || fallback;
+}
+
+async function registerUser() {
+    if (!validateSelector("#auth-username, #auth-password")) return;
+
+    const payload = {
+        username: document.getElementById("auth-username").value.trim(),
+        password: document.getElementById("auth-password").value
+    };
+
+    const res = await fetch(API + "/auth/register", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    document.getElementById("auth-result").innerHTML = res.ok
+        ? `<span class="success-msg">Registered successfully. You can login now.</span>`
+        : `<span class="error-msg">${formatApiError(data, "Registration failed.")}</span>`;
+}
+
+async function loginUser() {
+    if (!validateSelector("#auth-username, #auth-password")) return;
+
+    const payload = {
+        username: document.getElementById("auth-username").value.trim(),
+        password: document.getElementById("auth-password").value
+    };
+
+    const res = await fetch(API + "/auth/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+        jwtToken = data.access_token;
+        document.getElementById("auth-result").innerHTML =
+            `<span class="success-msg">Logged in successfully.</span>`;
+    } else {
+        document.getElementById("auth-result").innerHTML =
+            `<span class="error-msg">${formatApiError(data, "Login failed.")}</span>`;
+    }
+}
+
+function logoutUser() {
+    jwtToken = "";
+    document.getElementById("auth-result").innerHTML =
+        `<span class="success-msg">Logged out.</span>`;
+}
+
+function addGarment() {
+    const div = document.createElement("div");
+    div.className = "garment-row";
+    div.innerHTML = `
+        <div class="field">
+            <input placeholder="Name" class="g-name" data-validator="g-name">
+            <span class="valid-tick">✓</span>
+            <div class="field-error"></div>
+        </div>
+        <div class="field">
+            <input placeholder="Qty" type="number" min="1" class="g-qty" data-validator="g-qty">
+            <span class="valid-tick">✓</span>
+            <div class="field-error"></div>
+        </div>
+        <div class="field">
+            <input placeholder="Price" type="number" min="1" step="0.01" class="g-price" data-validator="g-price">
+            <span class="valid-tick">✓</span>
+            <div class="field-error"></div>
+        </div>
+    `;
+    document.getElementById("garments").appendChild(div);
+    attachValidationListeners(div);
+}
+
+function readGarments() {
+    const garments = [];
+
+    document.querySelectorAll("#garments .garment-row").forEach(div => {
+        garments.push({
+            name: div.querySelector(".g-name").value.trim(),
+            quantity: parseInt(div.querySelector(".g-qty").value, 10),
+            price_per_item: parseFloat(div.querySelector(".g-price").value)
+        });
+    });
+
+    return garments;
+}
+
+async function submitOrder() {
+    document.getElementById("order-result").innerHTML = "";
+
+    const valid = validateSelector("#name, #phone, #garments input");
+    if (!valid) {
+        document.getElementById("order-result").innerHTML =
+            `<span class="error-msg">Please fix the highlighted fields before submitting.</span>`;
+        return;
+    }
+
+    try {
+        const res = await protectedFetch(API + "/orders", {
+            method: "POST",
+            body: JSON.stringify({
+                customer_name: document.getElementById("name").value.trim(),
+                phone_number: document.getElementById("phone").value.trim(),
+                garments: readGarments()
+            })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            document.getElementById("order-result").innerHTML =
+                `<span class="error-msg">${formatApiError(data, "Order creation failed.")}</span>`;
+            return;
+        }
+
+        document.getElementById("order-result").innerHTML =
+            `<span class="success-msg">Order Created!</span><br>
+             <b>ID:</b> ${data.order_id}<br>
+             <b>Total:</b> Rs. ${data.total_bill}`;
+
+        document.getElementById("created-order-id").innerText = data.order_id;
+        document.getElementById("update-status-section").style.display = "block";
+        document.getElementById("manual-order-id").value = data.order_id;
+    } catch (error) {
+        document.getElementById("order-result").innerHTML =
+            `<span class="error-msg">${error.message}</span>`;
+    }
+}
+
+async function updateStatusFromCreate() {
+    const orderId = document.getElementById("created-order-id").innerText;
+    const status = document.getElementById("new-status").value;
+
+    try {
+        const res = await protectedFetch(API + `/orders/${orderId}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({status: status})
+        });
+
+        document.getElementById("status-update-result").innerHTML = res.ok
+            ? `<span class="success-msg">Status updated to ${status} successfully!</span>`
+            : `<span class="error-msg">Unable to update status.</span>`;
+    } catch (error) {
+        document.getElementById("status-update-result").innerHTML =
+            `<span class="error-msg">${error.message}</span>`;
+    }
+}
+
+async function updateStatusManual() {
+    const orderId = document.getElementById("manual-order-id").value.trim();
+    const status = document.getElementById("manual-status").value;
+
+    if (!orderId) {
+        document.getElementById("manual-status-result").innerHTML =
+            `<span class="error-msg">Please enter an Order ID.</span>`;
+        return;
+    }
+
+    try {
+        const res = await protectedFetch(API + `/orders/${orderId}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({status: status})
+        });
+
+        document.getElementById("manual-status-result").innerHTML = res.ok
+            ? `<span class="success-msg">Status updated to ${status} successfully!</span>`
+            : `<span class="error-msg">Order not found. Please check the Order ID.</span>`;
+    } catch (error) {
+        document.getElementById("manual-status-result").innerHTML =
+            `<span class="error-msg">${error.message}</span>`;
+    }
+}
+
+async function loadOrders() {
+    const params = new URLSearchParams();
+    const status = document.getElementById("filter-status").value.trim();
+    const name = document.getElementById("filter-name").value.trim();
+    const phone = document.getElementById("filter-phone").value.trim();
+    const garment = document.getElementById("filter-garment").value.trim();
+
+    if (status) params.append("status", status);
+    if (name) params.append("customer_name", name);
+    if (phone) params.append("phone_number", phone);
+    if (garment) params.append("garment_name", garment);
+
+    try {
+        const res = await protectedFetch(API + "/orders?" + params.toString());
+        const data = await res.json();
+        const container = document.getElementById("orders");
+        container.innerHTML = "";
+
+        if (!res.ok) {
+            container.innerHTML = `<p class="error-msg">${formatApiError(data, "Could not load orders.")}</p>`;
+            return;
+        }
+
+        if (data.length === 0) {
+            container.innerHTML = "<p>No orders found.</p>";
+            return;
+        }
+
+        data.forEach(order => {
+            const div = document.createElement("div");
+            div.className = "order";
+
+            div.innerHTML = `
+                <b>ID:</b> ${order.order_id}<br>
+                <b>Name:</b> ${order.customer_name}<br>
+                <b>Phone:</b> ${order.phone_number}<br>
+                <b>Status:</b> ${order.status}<br>
+                <b>Total:</b> Rs. ${order.total_bill}
+            `;
+
+            container.appendChild(div);
+        });
+    } catch (error) {
+        document.getElementById("orders").innerHTML =
+            `<p class="error-msg">${error.message}</p>`;
+    }
+}
+
+async function loadDashboard() {
+    try {
+        const res = await protectedFetch(API + "/dashboard");
+        const data = await res.json();
+
+        if (!res.ok) {
+            document.getElementById("dashboard").innerText = formatApiError(data, "Could not load dashboard.");
+            return;
+        }
+
+        document.getElementById("dashboard").innerText =
+            `Total Orders: ${data.total_orders}
+Total Revenue: Rs. ${data.total_revenue}
+Status Counts: ${JSON.stringify(data.orders_per_status, null, 2)}`;
+    } catch (error) {
+        document.getElementById("dashboard").innerText = error.message;
+    }
+}
+
+function attachValidationListeners(root = document) {
+    root.querySelectorAll("input").forEach(input => {
+        if (input.dataset.validationAttached) return;
+        input.dataset.validationAttached = "true";
+        input.addEventListener("input", () => validateInput(input));
+    });
+}
+
+attachValidationListeners();
+addGarment();
+</script>
+
+</body>
+</html>
