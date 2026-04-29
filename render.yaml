@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: laundry-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGODB_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_NAME
+        value: laundry_management
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+    autoDeploy: false
+
+  - type: web
+    name: laundry-frontend
+    env: static
+    repo: https://github.com/YOUR_USERNAME/laundry-app
+    dir: frontend
+    buildCommand: ""
+    autoDeploy: false
+

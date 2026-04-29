@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Laundry Management - Login</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 50px 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .auth-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 { 
+            color: #333; 
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        .field { 
+            margin-bottom: 20px; 
+            position: relative;
+        }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        input:focus { outline: none; border-color: #667eea; }
+        .field.invalid input { border-color: #e74c3c; }
+        .field.valid input { border-color: #27ae60; }
+        .valid-tick { 
+            color: #27ae60; 
+            font-weight: bold; 
+            font-size: 18px; 
+            position: absolute; 
+            right: 15px; 
+            top: 50%; 
+            transform: translateY(-50%); 
+            visibility: hidden; 
+        }
+        .field.valid .valid-tick { visibility: visible; }
+        .field-error { 
+            color: #e74c3c; 
+            font-size: 14px; 
+            margin-top: 5px; 
+            min-height: 18px;
+        }
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            background: #667eea; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            margin-bottom: 10px;
+            transition: background 0.3s;
+        }
+        button:hover { background: #5a67d8; }
+        button.secondary { background: #95a5a6; }
+        button.secondary:hover { background: #7f8c8d; }
+        .success-msg { color: #27ae60; font-weight: bold; text-align: center; margin-top: 15px; }
+        .error-msg { color: #e74c3c; font-weight: bold; text-align: center; margin-top: 15px; }
+        .nav-link { 
+            text-align: center; 
+            color: #667eea; 
+            text-decoration: none; 
+            font-weight: bold;
+            display: block;
+            margin-top: 20px;
+        }
+        .nav-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h1>🧺 Laundry Management</h1>
+        
+        <div class="field" data-field="auth-username">
+            <input id="auth-username" placeholder="Username (min 3 chars)" autocomplete="username">
+            <span class="valid-tick">✓</span>
+            <div class="field-error"></div>
+        </div>
+
+        <div class="field" data-field="auth-password">
+            <input id="auth-password" placeholder="Password (min 6 chars)" type="password" autocomplete="current-password">
+            <span class="valid-tick">✓</span>
+            <div class="field-error"></div>
+        </div>
+
+        <button onclick="registerUser()">Register</button>
+        <button class="secondary" onclick="loginUser()">Login</button>
+
+        <p id="auth-result"></p>
+
+<a href="app.html" class="nav-link">Already registered? Go to App →</a>
+    </div>
+
+    <script>
+        const API = "http://127.0.0.1:8000";
+        const validators = {
+            "auth-username": value => value.trim().length >= 3 ? "" : "Username must be at least 3 characters",
+            "auth-password": value => value.length >= 6 ? "" : "Password must be at least 6 characters"
+        };
+
+        function setFieldState(input, error) {
+            const field = input.closest(".field");
+            const errorEl = field.querySelector(".field-error");
+            field.classList.toggle("valid", !error);
+            field.classList.toggle("invalid", !!error);
+            errorEl.textContent = error;
+        }
+
+        function validateInput(input) {
+            const key = input.dataset.field || input.id;
+            const validator = validators[key];
+            if (!validator) return true;
+            const error = validator(input.value);
+            setFieldState(input, error);
+            return !error;
+        }
+
+        function validateForm() {
+            let valid = true;
+            document.querySelectorAll(".field input").forEach(input => {
+                if (!validateInput(input)) valid = false;
+            });
+            return valid;
+        }
+
+        document.querySelectorAll("input").forEach(input => {
+            input.addEventListener("input", () => validateInput(input));
+        });
+
+        async function registerUser() {
+            if (!validateForm()) return;
+            
+            const payload = {
+                username: document.getElementById("auth-username").value.trim(),
+                password: document.getElementById("auth-password").value
+            };
+
+            try {
+                const res = await fetch(`${API}/auth/register`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                document.getElementById("auth-result").innerHTML = res.ok
+                    ? '<span class="success-msg">✅ Registered! You can now login.</span>'
+                    : `<span class="error-msg">❌ ${data.detail || 'Registration failed'}</span>`;
+            } catch (error) {
+                document.getElementById("auth-result").innerHTML = '<span class="error-msg">❌ Network error</span>';
+            }
+        }
+
+        async function loginUser() {
+            if (!validateForm()) return;
+            
+            const payload = {
+                username: document.getElementById("auth-username").value.trim(),
+                password: document.getElementById("auth-password").value
+            };
+
+            try {
+                const res = await fetch(`${API}/auth/login`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    localStorage.setItem('jwtToken', data.access_token);
+window.location.href = 'app.html';
+                } else {
+                    document.getElementById("auth-result").innerHTML = 
+                        `<span class="error-msg">❌ ${data.detail || 'Login failed'}</span>`;
+                }
+            } catch (error) {
+                document.getElementById("auth-result").innerHTML = '<span class="error-msg">❌ Network error</span>';
+            }
+        }
+    </script>
+</body>
+</html>
+

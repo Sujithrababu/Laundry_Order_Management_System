@@ -63,16 +63,71 @@ uvicorn main:app --reload
 
 The API will be available at `http://127.0.0.1:8000`.
 
-### 5. Serve the Frontend
+### 5. Local Development
 
-Open `frontend/index.html` directly in your browser, or use a simple static server:
+**Backend**:
+```bash
+uvicorn main:app --reload
+```
 
+**Frontend**:
 ```bash
 cd frontend
 python -m http.server 5500
 ```
 
-Then visit `http://localhost:5500`.
+Visit `http://localhost:5500` → **Login** → **Dashboard** (API at `http://127.0.0.1:8000`)
+
+### 🌐 Deploy to Render (Free!)
+
+1. **Push to GitHub**:
+```bash
+git init
+git add .
+git commit -m "Deploy laundry app"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/laundry-app.git
+git push -u origin main
+```
+
+2. **Backend** (render.com → New → Web Service):
+   - **Repository**: Your GitHub repo
+   - **Runtime**: Python
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - **Environment Variables**:
+     ```
+     MONGODB_URL=your_atlas_connection_string
+     SECRET_KEY=generate_random_string
+     ```
+
+3. **Frontend** (render.com → New → Static Site):
+   - **Repository**: Same GitHub repo
+   - **Root Directory**: `frontend`
+   - **Environment Variable**: `API_URL=https://your-backend.onrender.com`
+
+4. **URLs**:
+   ```
+   API: https://your-backend.onrender.com/docs
+   Frontend: https://your-frontend.onrender.com
+   ```
+
+**render.yaml** (optional - auto multi-service):
+```
+services:
+  - type: web
+    name: laundry-api
+    env: python
+    buildCommand: pip install -r requirements.txt  
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+  - type: web
+    name: laundry-frontend
+    env: static
+    dir: frontend
+```
+
+**Free tier limits**: Backend sleeps after 15min inactivity, wakes on first request (~30s cold start).
+
 
 ---
 

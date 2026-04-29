@@ -189,23 +189,9 @@ class StatusUpdate(BaseModel):
 
 
 class UserCreate(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=6)
 
-    @field_validator("username")
-    @classmethod
-    def validate_username(cls, value: str) -> str:
-        stripped = value.strip()
-        if len(stripped) < 3:
-            raise ValueError("Username must be at least 3 characters long")
-        return stripped
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, value: str) -> str:
-        if len(value) < 6:
-            raise ValueError("Password must be at least 6 characters long")
-        return value
 
 
 class TokenResponse(BaseModel):
@@ -231,13 +217,19 @@ async def register(user: UserCreate):
 
 
 @app.post("/auth/login", response_model=TokenResponse)
-async def login(user: UserCreate):
-    stored_user = await users_collection.find_one({"username": user.username})
-    if not stored_user or not verify_password(user.password, stored_user["hashed_password"]):
+async def login(user_data: dict):
+    username = user_data.get("username")
+    password = user_data.get("password")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password required")
+    
+    stored_user = await users_collection.find_one({"username": username})
+    if not stored_user or not verify_password(password, stored_user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     access_token = create_access_token({"sub": stored_user["username"]})
     return {"access_token": access_token, "token_type": "bearer"}
+
 
 
 @app.post("/orders", response_model=OrderResponse, status_code=201)

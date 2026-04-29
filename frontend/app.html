@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Laundry Management System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
+        header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 20px; 
+            border-radius: 8px 8px 0 0; 
+            margin: -20px -20px 20px -20px;
+        }
+        h1 { margin: 0; }
+        .nav-buttons { position: absolute; top: 20px; right: 20px; }
+        .nav-btn { 
+            background: rgba(255,255,255,0.2); 
+            color: white; 
+            border: 1px solid rgba(255,255,255,0.3); 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            text-decoration: none; 
+            margin-left: 10px;
+        }
+        h2 { color: #333; }
+        input, button, select { margin: 5px; padding: 8px; }
+        button { cursor: pointer; background: #667eea; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #5a67d8; }
+        .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .order { border-left: 4px solid #667eea; padding: 15px; margin: 10px 0; border-radius: 5px; background: #fafbfc; }
+        #update-status-section { display: none; }
+        .success-msg { color: #27ae60; font-weight: bold; }
+        .error-msg, .field-error { color: #e74c3c; font-size: 13px; margin: 0 0 6px 5px; }
+        .field { display: inline-block; vertical-align: top; margin-bottom: 8px; }
+        .valid-tick { color: #27ae60; font-weight: bold; visibility: hidden; }
+        .field.valid .valid-tick { visibility: visible; }
+        .field.invalid input { border: 1px solid #e74c3c; }
+        .field.valid input { border: 1px solid #27ae60; }
+        .garment-row { margin-bottom: 8px; display: flex; gap: 10px; }
+        .garment-field { flex: 1; }
+        .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .status-received { background: #f39c12; color: white; }
+        .status-processing { background: #3498db; color: white; }
+        .status-ready { background: #f1c40f; color: #333; }
+        .status-delivered { background: #27ae60; color: white; }
+    </style>
+</head>
+<body>
+    <header>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>🧺 Laundry Dashboard</h1>
+            <div class="nav-buttons">
+<a href="auth.html" class="nav-btn" onclick="logoutUser(); return false;">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="section">
+        <h2>📝 1. Create Order</h2>
+        <div class="field" data-field="name">
+            <input id="name" placeholder="Customer Name">
+            <span class="valid-tick">✓</span>
+            <div class="field-error"></div>
+        </div>
+        <div class="field" data-field="phone">
+            <input id="phone" placeholder="Phone Number" maxlength="10">
+            <span class="valid-tick">✓</span>
+            <div class="field-error"></div>
+        </div>
+        <h3>👕 Garments</h3>
+        <div id="garments"></div>
+        <button onclick="addGarment()">➕ Add Garment</button>
+        <button onclick="submitOrder()">🚀 Submit Order</button>
+        <div id="order-result" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="section" id="update-status-section">
+        <h2>⚡ 2. Quick Status Update</h2>
+        <p>Order ID: <b id="created-order-id"></b></p>
+        <select id="new-status">
+            <option value="RECEIVED">📥 RECEIVED</option>
+            <option value="PROCESSING">🔄 PROCESSING</option>
+            <option value="READY">✅ READY</option>
+            <option value="DELIVERED">📦 DELIVERED</option>
+        </select>
+        <button onclick="updateStatusFromCreate()">Update Status</button>
+        <p id="status-update-result"></p>
+    </div>
+
+    <div class="section">
+        <h2>🔍 3. Update Status by ID</h2>
+        <input id="manual-order-id" placeholder="Enter Order ID">
+        <select id="manual-status">
+            <option value="RECEIVED">📥 RECEIVED</option>
+            <option value="PROCESSING">🔄 PROCESSING</option>
+            <option value="READY">✅ READY</option>
+            <option value="DELIVERED">📦 DELIVERED</option>
+        </select>
+        <button onclick="updateStatusManual()">Update Status</button>
+        <p id="manual-status-result"></p>
+    </div>
+
+    <div class="section">
+        <h2>📋 4. All Orders</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+            <input id="filter-status" placeholder="Status">
+            <input id="filter-name" placeholder="Customer Name">
+            <input id="filter-phone" placeholder="Phone">
+            <input id="filter-garment" placeholder="Garment">
+            <button onclick="loadOrders()">🔍 Search</button>
+        </div>
+        <div id="orders"></div>
+    </div>
+
+    <div class="section">
+        <h2>📊 5. Dashboard</h2>
+        <button onclick="loadDashboard()">📈 Load Stats</button>
+        <pre id="dashboard" style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 10px;"></pre>
+    </div>
+
+    <script>
+        const API = "http://127.0.0.1:8000";
+        let jwtToken = localStorage.getItem('jwtToken') || "";
+
+        // Check auth on load
+        if (!jwtToken) {
+            window.location.href = 'auth.html';
+        }
+
+        const validators = {
+            "name": value => {
+                const trimmed = value.trim();
+                if (trimmed.length < 2) return "Customer name must be at least 2 characters.";
+                if (!/^[A-Za-z ]+$/.test(trimmed)) return "Customer name must contain letters and spaces only.";
+                return "";
+            },
+            "phone": value => {
+                const trimmed = value.trim();
+                if (!/^\d+$/.test(trimmed)) return "Phone number must contain numbers only.";
+                if (trimmed.length !== 10) return "Phone number must be exactly 10 digits.";
+                return "";
+            },
+            "g-name": value => {
+                const trimmed = value.trim();
+                if (!trimmed) return "Garment name cannot be empty.";
+                if (!/^[A-Za-z ]+$/.test(trimmed)) return "Garment name must contain letters and spaces only.";
+                return "";
+            },
+            "g-qty": value => Number(value) >= 1 ? "" : "Quantity must be at least 1.",
+            "g-price": value => Number(value) >= 1 ? "" : "Price per item must be at least 1."
+        };
+
+        function setFieldState(input, error) {
+            const field = input.closest(".field");
+            const errorEl = field.querySelector(".field-error");
+            field.classList.toggle("valid", !error);
+            field.classList.toggle("invalid", !!error);
+            errorEl.textContent = error;
+        }
+
+        function validateInput(input) {
+            const key = input.dataset.validator || input.closest('.field').dataset.field;
+            const validator = validators[key];
+            if (!validator) return true;
+            const error = validator(input.value);
+            setFieldState(input, error);
+            return !error;
+        }
+
+        function authHeaders() {
+            return {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${jwtToken}`
+            };
+        }
+
+        async function protectedFetch(url, options = {}) {
+            if (!jwtToken) throw new Error("Authentication required");
+            const headers = { ...authHeaders(), ...(options.headers || {}) };
+            const res = await fetch(url, { ...options, headers });
+            if (res.status === 401) {
+                localStorage.removeItem('jwtToken');
+                window.location.href = 'auth.html';
+            }
+            return res;
+        }
+
+        function formatApiError(data) {
+            return Array.isArray(data.detail) ? data.detail.map(item => item.msg).join("; ") : data.detail || "Error";
+        }
+
+        function addGarment() {
+            const div = document.createElement("div");
+            div.className = "garment-row";
+            div.innerHTML = `
+                <div class="field garment-field" data-field="g-name">
+                    <input placeholder="Name" class="g-name" data-validator="g-name">
+                    <span class="valid-tick">✓</span>
+                    <div class="field-error"></div>
+                </div>
+                <div class="field garment-field" data-field="g-qty">
+                    <input placeholder="Qty" type="number" min="1" class="g-qty" data-validator="g-qty">
+                    <span class="valid-tick">✓</span>
+                    <div class="field-error"></div>
+                </div>
+                <div class="field garment-field" data-field="g-price">
+                    <input placeholder="Price" type="number" min="1" step="0.01" class="g-price" data-validator="g-price">
+                    <span class="valid-tick">✓</span>
+                    <div class="field-error"></div>
+                </div>
+            `;
+            document.getElementById("garments").appendChild(div);
+            attachValidationListeners(div);
+        }
+
+        async function submitOrder() {
+            const resultEl = document.getElementById("order-result");
+            resultEl.innerHTML = "";
+            
+            const valid = validateSelector("#name, #phone, #garments input");
+            if (!valid) {
+                resultEl.innerHTML = '<span class="error-msg">Please fix highlighted fields</span>';
+                return;
+            }
+
+            try {
+                const res = await protectedFetch(`${API}/orders`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        customer_name: document.getElementById("name").value.trim(),
+                        phone_number: document.getElementById("phone").value.trim(),
+                        garments: Array.from(document.querySelectorAll(".garment-row")).map(row => ({
+                            name: row.querySelector(".g-name").value.trim(),
+                            quantity: parseInt(row.querySelector(".g-qty").value),
+                            price_per_item: parseFloat(row.querySelector(".g-price").value)
+                        })).filter(g => g.name)
+                    })
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw new Error(formatApiError(data));
+                
+                resultEl.innerHTML = `
+                    <span class="success-msg">✅ Order Created!</span><br>
+                    <b>ID:</b> ${data.order_id}<br>
+                    <b>Total:</b> ₹${data.total_bill.toFixed(2)}<br>
+                    <b>Est. Delivery:</b> ${new Date(data.estimated_delivery).toLocaleDateString()}
+                `;
+                document.getElementById("created-order-id").textContent = data.order_id;
+                document.getElementById("update-status-section").style.display = "block";
+                document.getElementById("manual-order-id").value = data.order_id;
+            } catch (error) {
+                resultEl.innerHTML = `<span class="error-msg">❌ ${error.message}</span>`;
+            }
+        }
+
+async function updateStatusFromCreate() {
+            const orderId = document.getElementById("created-order-id").textContent;
+            const status = document.getElementById("new-status").value;
+
+            try {
+                const res = await protectedFetch(`${API}/orders/${orderId}/status`, {
+                    method: "PATCH",
+                    body: JSON.stringify({status: status})
+                });
+
+                document.getElementById("status-update-result").innerHTML = res.ok
+                    ? `<span class="success-msg">Status updated to ${status} successfully!</span>`
+                    : `<span class="error-msg">Unable to update status.</span>`;
+                loadOrders(); // Refresh
+            } catch (error) {
+                document.getElementById("status-update-result").innerHTML = `<span class="error-msg">${error.message}</span>`;
+            }
+        }
+
+
+async function updateStatusManual() {
+            const orderId = document.getElementById("manual-order-id").value.trim();
+            const status = document.getElementById("manual-status").value;
+
+            if (!orderId) {
+                document.getElementById("manual-status-result").innerHTML = `<span class="error-msg">Please enter Order ID</span>`;
+                return;
+            }
+
+            try {
+                const res = await protectedFetch(`${API}/orders/${orderId}/status`, {
+                    method: "PATCH",
+                    body: JSON.stringify({status: status})
+                });
+
+                document.getElementById("manual-status-result").innerHTML = res.ok
+                    ? `<span class="success-msg">Status updated to ${status}!</span>`
+                    : `<span class="error-msg">Order not found</span>`;
+                loadOrders();
+            } catch (error) {
+                document.getElementById("manual-status-result").innerHTML = `<span class="error-msg">${error.message}</span>`;
+            }
+        }
+
+
+        async function loadOrders() {
+            const params = new URLSearchParams({
+                status: document.getElementById("filter-status").value.trim(),
+                customer_name: document.getElementById("filter-name").value.trim(),
+                phone_number: document.getElementById("filter-phone").value.trim(),
+                garment_name: document.getElementById("filter-garment").value.trim()
+            }).toString();
+
+            try {
+                const res = await protectedFetch(`${API}/orders?${params}`);
+                const orders = await res.json();
+                const container = document.getElementById("orders");
+                container.innerHTML = orders.length ? 
+                    orders.map(order => `
+                        <div class="order">
+                            <h4>ID: <strong>${order.order_id}</strong></h4>
+                            <p><strong>Customer:</strong> ${order.customer_name} | ${order.phone_number}</p>
+                            <p><strong>Total:</strong> ₹${order.total_bill.toFixed(2)}</p>
+                            <p><strong>Status:</strong> 
+                                <span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span>
+                            </p>
+                            <p><strong>Created:</strong> ${new Date(order.created_at).toLocaleString()}</p>
+                            <p><strong>Est. Delivery:</strong> 
+                                <span style="color: ${new Date(order.estimated_delivery) < new Date() ? '#e74c3c' : '#27ae60'}">
+                                    ${new Date(order.estimated_delivery).toLocaleDateString()}
+                                </span>
+                            </p>
+                        </div>
+                    `).join('') : '<p>No orders found</p>';
+            } catch (error) {
+                document.getElementById("orders").innerHTML = `<p class="error-msg">Error: ${error.message}</p>`;
+            }
+        }
+
+async function loadDashboard() {
+            try {
+                const res = await protectedFetch(`${API}/dashboard`);
+                const data = await res.json();
+
+                if (!res.ok) {
+                    document.getElementById("dashboard").textContent = `Error: ${formatApiError(data)}`;
+                    return;
+                }
+
+                document.getElementById("dashboard").textContent = `
+Total Orders: ${data.total_orders}
+Total Revenue: ₹${data.total_revenue.toLocaleString()}
+Status Breakdown:
+${Object.entries(data.orders_per_status).map(([status, count]) => `  ${status}: ${count}`).join('\n')}
+                `;
+            } catch (error) {
+                document.getElementById("dashboard").textContent = `Error loading dashboard: ${error.message}`;
+            }
+        }
+
+
+        function validateSelector(selector) {
+            let valid = true;
+            document.querySelectorAll(selector).forEach(input => {
+                if (!validateInput(input)) valid = false;
+            });
+            return valid;
+        }
+
+        function attachValidationListeners(root = document) {
+            root.querySelectorAll('input[data-validator]').forEach(input => {
+                input.addEventListener('input', () => validateInput(input));
+            });
+        }
+
+        function logoutUser() {
+            localStorage.removeItem('jwtToken');
+            jwtToken = "";
+        }
+
+        // Initialize
+        attachValidationListeners();
+        addGarment();
+        loadOrders();  // Auto-load orders on app start
+    </script>
+</body>
+</html>
+
