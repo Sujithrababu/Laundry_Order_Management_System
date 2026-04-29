@@ -4,16 +4,15 @@
 [![Backend API](https://img.shields.io/badge/API-Docs-blue)](https://laundry-order-management-system-opkq.onrender.com/docs)
 [![GitHub](https://img.shields.io/badge/GitHub-Repo-black)](https://github.com/Sujithrababu/Laundry_Order_Management_System)
 
-## 🎯 **Live Demo Links**
+## 🎯 **Live Demo**
 
-| Feature | Demo Link |
-|---------|-----------|
-| [🏠 Landing](https://laundry-order-management-system-opkq.onrender.com) | Welcome page |
-| [🔐 Login](https://laundry-order-management-system-opkq.onrender.com) | Auth page |
-| [📊 Dashboard](https://laundry-order-management-system-opkq.onrender.com) | Main app |
-| [📋 API Docs](https://laundry-order-management-system-opkq.onrender.com/docs) | Swagger UI |
+| Link | URL |
+|------|-----|
+| **Live App** | https://laundry-order-management-system-opkq.onrender.com |
+| **API Docs** | https://laundry-order-management-system-opkq.onrender.com/docs |
 
 ## 🎯 Features Implemented
+
 
 ### Core Requirements
 1. **Create Order**: Customer details, multiple garments, total bill, unique Order ID
