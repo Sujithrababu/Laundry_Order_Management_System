@@ -1,10 +1,11 @@
-# Laundry Order Management System
+# 🚀 Laundry Order Management System - AI-First Assignment
 
-**Live**: https://laundry-order-management-system-opkq.onrender.com  
-**API Docs**: https://laundry-order-management-system-opkq.onrender.com/docs  
-**Repo**: https://github.com/Sujithrababu/Laundry_Order_Management_System
+[![Deployed on Render](https://img.shields.io/badge/Live-OPKQ-brightgreen)](https://laundry-order-management-system-opkq.onrender.com)
+[![Backend API](https://img.shields.io/badge/API-Docs-blue)](https://laundry-order-management-system-opkq.onrender.com/docs)
+[![GitHub](https://img.shields.io/badge/GitHub-Repo-black)](https://github.com/Sujithrababu/Laundry_Order_Management_System)
 
-## Features Implemented
+## 🎯 Features Implemented
+
 
 ### Core Requirements
 1. **Create Order**: Customer details, multiple garments, total bill, unique Order ID
@@ -41,11 +42,12 @@ MONGODB_URL=your_atlas_connection_string
 SECRET_KEY=generate_secret
 ```
 
-## AI Usage Report (~5-6 hours development)
+## 🤖 AI Usage Report (~5-6 hours development)
 
 ### Tools
 - **BLACKBOX AI**: Code generation (backend, frontend structure)
 - **ChatGPT-4**: Debugging, validation logic
+
 
 ### Key Prompts Used
 ```
@@ -68,6 +70,7 @@ Frontend + Auth: 2hrs
 Deployment + Fixes: 1.5hrs
 Total: ~6.5hrs (within 72hr window)
 ```
+
 
 ## Tradeoffs
 | Decision | Why |
