@@ -10,7 +10,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from motor.motor_asyncio import AsyncIOMotorClient
 from passlib.context import CryptContext
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
+
 
 load_dotenv()
 
@@ -300,9 +302,15 @@ async def get_orders(
     return orders
 
 
+@app.get("/")
+async def serve_frontend():
+    return FileResponse("frontend/index.html")
+
+
 @app.get("/dashboard")
 async def dashboard(current_user: dict = Depends(get_current_user)):
     total_orders = await orders_collection.count_documents({})
+
 
     revenue_pipeline = [
         {"$group": {"_id": None, "total_revenue": {"$sum": "$total_bill"}}}
